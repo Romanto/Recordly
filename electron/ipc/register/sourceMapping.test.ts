@@ -4,6 +4,7 @@ import {
 	getLinuxWindowSystem,
 	getScreenSourceIdForDisplay,
 	LINUX_PORTAL_SCREEN_SOURCE_ID,
+	matchCapturerSourcesToDisplays,
 	shouldUseLinuxPortalSyntheticSource,
 } from "./sourceMapping";
 
@@ -84,6 +85,37 @@ describe("shouldUseLinuxPortalSyntheticSource", () => {
 				sourceId: LINUX_PORTAL_SCREEN_SOURCE_ID,
 			}),
 		).toBe(false);
+	});
+});
+
+describe("matchCapturerSourcesToDisplays", () => {
+	it("prefers an exact capturer display id", () => {
+		const matched = matchCapturerSourcesToDisplays(
+			[{ id: 10 }, { id: 20 }],
+			[
+				{ id: "screen:1:0", display_id: "20" },
+				{ id: "screen:2:0", display_id: "10" },
+			],
+		);
+
+		expect(matched.get("10")?.id).toBe("screen:2:0");
+		expect(matched.get("20")?.id).toBe("screen:1:0");
+	});
+
+	it("pairs Linux sources by native display order when capturer ids do not match", () => {
+		const nativeDisplays = [
+			{ id: 3850489720471618 },
+			{ id: 21441881304584772 },
+		];
+		const capturerSources = [
+			{ id: "screen:394:0", display_id: "66" },
+			{ id: "screen:395:0", display_id: "108646979" },
+		];
+
+		const matched = matchCapturerSourcesToDisplays(nativeDisplays, capturerSources);
+
+		expect(matched.get("3850489720471618")?.id).toBe("screen:394:0");
+		expect(matched.get("21441881304584772")?.id).toBe("screen:395:0");
 	});
 });
 

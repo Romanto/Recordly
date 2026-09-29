@@ -190,8 +190,10 @@ export function normalizeBrowserMicrophoneProfile(value?: string | null): Browse
 
 export function resolveBrowserCaptureCursorPolicy({
 	nativeWindowsCaptureStartFailed = false,
+	platform,
 }: {
 	nativeWindowsCaptureStartFailed?: boolean;
+	platform?: string;
 } = {}): BrowserCaptureCursorPolicy {
 	if (nativeWindowsCaptureStartFailed) {
 		// If WGC already failed, avoid the telemetry overlay path that can lag on
@@ -200,6 +202,16 @@ export function resolveBrowserCaptureCursorPolicy({
 			streamCursor: "always",
 			hideOsCursorBeforeRecording: false,
 			hideEditorOverlayCursorByDefault: true,
+		};
+	}
+
+	if (platform === "linux") {
+		// Linux capture omits the OS cursor, and there is no native cursor
+		// compositor. Keep the tracked cursor visible in the editor.
+		return {
+			streamCursor: "never",
+			hideOsCursorBeforeRecording: false,
+			hideEditorOverlayCursorByDefault: false,
 		};
 	}
 
@@ -1711,8 +1723,13 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 				return;
 			}
 
-			const { selectedSource, useNativeMacScreenCapture, useNativeWindowsCapture, micLabel } =
-				preparedStart;
+			const {
+				selectedSource,
+				useNativeMacScreenCapture,
+				useNativeWindowsCapture,
+				micLabel,
+				platform,
+			} = preparedStart;
 			const useNativeCapture = useNativeMacScreenCapture || useNativeWindowsCapture;
 			const shouldWarmStartNativeCapture = useNativeCapture && countdownDelay > 0;
 			if (countdownDelay > 0 && !shouldWarmStartNativeCapture) {
@@ -1946,6 +1963,7 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 
 			const browserCursorPolicy = resolveBrowserCaptureCursorPolicy({
 				nativeWindowsCaptureStartFailed,
+				platform,
 			});
 			hideEditorOverlayCursorByDefault.current =
 				browserCursorPolicy.hideEditorOverlayCursorByDefault;

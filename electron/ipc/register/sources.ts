@@ -20,7 +20,7 @@ import { selectedSource, setSelectedSource } from "../state";
 import type { SelectedSource, WindowBounds } from "../types";
 import { getScreen, parseWindowId } from "../utils";
 import { bringWindowsWindowForward, resolveWindowsWindowBounds } from "../windowsWindowControl";
-import { getScreenSourceIdForDisplay } from "./sourceMapping";
+import { getScreenSourceIdForDisplay, matchCapturerSourcesToDisplays } from "./sourceMapping";
 
 const execFileAsync = promisify(execFile);
 const SOURCE_LIST_CACHE_TTL_MS = 1200;
@@ -176,33 +176,22 @@ export function registerSourceHandlers({
 		);
 		const ownAppName = normalizeDesktopSourceName(app.getName());
 
-		const displays = includeScreens
-			? [...getScreen().getAllDisplays()].sort(
-					(left, right) =>
-						left.bounds.x - right.bounds.x ||
-						left.bounds.y - right.bounds.y ||
-						left.id - right.id,
-				)
-			: [];
-		const primaryDisplayId = includeScreens ? String(getScreen().getPrimaryDisplay().id) : "";
-		const electronScreenSourcesByDisplayId = new Map(
-			electronSources
-				.filter((source) => source.id.startsWith("screen:"))
-				.map((source) => [String(source.display_id ?? ""), source] as const),
+		const nativeDisplays = includeScreens ? [...getScreen().getAllDisplays()] : [];
+		const displays = [...nativeDisplays].sort(
+			(left, right) =>
+				left.bounds.x - right.bounds.x ||
+				left.bounds.y - right.bounds.y ||
+				left.id - right.id,
 		);
-		// On Linux, desktopCapturer display_id values may not match screen.getAllDisplays() IDs.
-		// Keep an ordered list so we can fall back to position-based matching.
-		const electronScreenSourcesByIndex = electronSources.filter((source) =>
-			source.id.startsWith("screen:"),
+		const primaryDisplayId = includeScreens ? String(getScreen().getPrimaryDisplay().id) : "";
+		const capturerSourceByDisplayId = matchCapturerSourcesToDisplays(
+			nativeDisplays,
+			electronSources.filter((source) => source.id.startsWith("screen:")),
 		);
 
 		const screenSources = displays.map((display, index) => {
 			const displayId = String(display.id);
-			const matchedSource =
-				electronScreenSourcesByDisplayId.get(displayId) ??
-				(electronScreenSourcesByIndex.length === displays.length
-					? electronScreenSourcesByIndex[index]
-					: undefined);
+			const matchedSource = capturerSourceByDisplayId.get(displayId);
 			const displayName =
 				displayId === primaryDisplayId
 					? `Screen ${index + 1} (Primary)`

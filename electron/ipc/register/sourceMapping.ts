@@ -64,3 +64,45 @@ export function getScreenSourceIdForDisplay({
 
 	return `screen:fallback:${displayId}`;
 }
+
+/**
+ * Pair Electron displays with desktopCapturer screens.
+ *
+ * On Linux the capturer's display_id does not match Screen display ids.
+ * The capturer list follows getAllDisplays() order. Sorting displays by
+ * position before pairing swaps monitors and pins cursor telemetry to the
+ * wrong screen.
+ */
+export function matchCapturerSourcesToDisplays<T extends { display_id?: string | null }>(
+	displays: Array<{ id: number | string }>,
+	capturerSources: T[],
+): Map<string, T> {
+	const byCapturerDisplayId = new Map<string, T>();
+	for (const source of capturerSources) {
+		const capturerDisplayId = String(source.display_id ?? "");
+		if (capturerDisplayId) {
+			byCapturerDisplayId.set(capturerDisplayId, source);
+		}
+	}
+
+	const matched = new Map<string, T>();
+	displays.forEach((display, index) => {
+		const displayId = String(display.id);
+		const byId = byCapturerDisplayId.get(displayId);
+		if (byId) {
+			matched.set(displayId, byId);
+			return;
+		}
+
+		if (capturerSources.length !== displays.length) {
+			return;
+		}
+
+		const byNativeOrder = capturerSources[index];
+		if (byNativeOrder) {
+			matched.set(displayId, byNativeOrder);
+		}
+	});
+
+	return matched;
+}

@@ -149,6 +149,14 @@ describe("resolveBrowserCaptureCursorPolicy", () => {
 		});
 	});
 
+	it("keeps the tracked cursor visible on Linux because the OS cursor is not captured", () => {
+		expect(resolveBrowserCaptureCursorPolicy({ platform: "linux" })).toEqual({
+			streamCursor: "never",
+			hideOsCursorBeforeRecording: false,
+			hideEditorOverlayCursorByDefault: false,
+		});
+	});
+
 	it("uses the browser captured cursor after native Windows capture fails to start", () => {
 		expect(
 			resolveBrowserCaptureCursorPolicy({ nativeWindowsCaptureStartFailed: true }),
