@@ -194,15 +194,13 @@ PKGBUILD, desktop entry, release sync, and optional **local-from-source** packag
 
 **macOS:** Xcode Command Line Tools (`xcode-select --install`).
 
-**Linux (Ubuntu/Debian):**
-
-```bash
-sudo apt install build-essential cmake libx11-dev libxtst-dev libxrandr-dev libxt-dev
-```
+**Linux (Ubuntu/Debian):** follow [Deploy on Linux](#deploy-on-linux) below. That path installs PipeWire, the X11 build libraries, and the desktop portal, then starts the app.
 
 **Windows:** Visual Studio 2022 (or Build Tools) with the C++ workload and CMake.
 
 ### Steps
+
+Use Node.js 22 or newer.
 
 ```bash
 git clone https://github.com/webadderallorg/Recordly.git recordly
@@ -210,6 +208,8 @@ cd recordly
 npm install
 npm run dev
 ```
+
+`npm run dev` builds the Electron app and opens the recording HUD. The renderer is also available at http://localhost:5173/.
 
 For packaged builds:
 
@@ -222,6 +222,113 @@ Target-specific build commands are also available:
 - `npm run build:mac`
 - `npm run build:win`
 - `npm run build:linux`
+
+---
+
+## Deploy on Linux
+
+Use this on Ubuntu 24.04 with GNOME, an X11 session, and PipeWire. The same package list works on other current Ubuntu or Debian desktops.
+
+### 1. Confirm the desktop session
+
+```bash
+echo "$XDG_SESSION_TYPE"
+```
+
+`x11` is the session this project is set up for. You can pick a screen from the recording bar. On Wayland the bar hides that picker and the desktop portal chooses the surface instead.
+
+### 2. Install system packages
+
+```bash
+sudo apt update
+sudo apt install build-essential cmake \
+  libx11-dev libxtst-dev libxrandr-dev libxt-dev libxfixes-dev \
+  pipewire pipewire-pulse pipewire-alsa wireplumber \
+  pulseaudio-utils \
+  xdg-desktop-portal xdg-desktop-portal-gnome xdg-desktop-portal-gtk
+```
+
+| Package | Why it is here |
+|---|---|
+| `build-essential`, `cmake` | `npm install` rebuilds the native mouse hook |
+| `libx11-dev`, `libxtst-dev`, `libxrandr-dev`, `libxt-dev`, `libxfixes-dev` | Screen capture and cursor tracking |
+| `pipewire`, `pipewire-pulse`, `pipewire-alsa`, `wireplumber` | System audio. `pipewire-pulse` is the PulseAudio replacement on this desktop |
+| `pulseaudio-utils` | Provides `pactl` so you can check the PipeWire audio path |
+| `xdg-desktop-portal`, `xdg-desktop-portal-gnome`, `xdg-desktop-portal-gtk` | Lets Electron ask the session for a screen and for system audio |
+
+Check that audio services are running:
+
+```bash
+systemctl --user --now enable pipewire pipewire-pulse wireplumber xdg-desktop-portal
+systemctl --user is-active pipewire pipewire-pulse wireplumber xdg-desktop-portal
+```
+
+Each line should print `active`.
+
+### 3. Install Node.js 22
+
+```bash
+node -v
+```
+
+If that is missing or older than 22, install Node 22 with [nvm](https://github.com/nvm-sh/nvm):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
+# open a new terminal, then:
+nvm install 22
+nvm use 22
+```
+
+### 4. Get the project and install its dependencies
+
+```bash
+git clone https://github.com/webadderallorg/Recordly.git recordly
+cd recordly
+npm install
+```
+
+`npm install` compiles the native hook. If that step fails, the X11 and build packages from step 2 are not installed yet.
+
+### 5. Start Recordly
+
+```bash
+npm run dev
+```
+
+The recording HUD opens. Leave this terminal running. Stop it later with Ctrl+C.
+
+### 6. Record
+
+1. On the recording bar, open the monitor button and choose the screen you want. On two monitors, cursor tracking follows that choice.
+2. Turn on the microphone or system audio if you need them.
+3. Start recording, then stop it. The editor opens.
+4. The video file does not contain the system pointer. The editor draws the tracked cursor on top of the picture.
+
+Recordings are saved under `~/.config/Recordly-dev/recordings/` while you are on `npm run dev`.
+
+If system audio is silent:
+
+```bash
+pactl info
+systemctl --user status pipewire pipewire-pulse xdg-desktop-portal
+```
+
+`pactl info` should show a PipeWire server.
+
+### 7. Optional: build a Linux AppImage
+
+```bash
+npm run build:linux
+chmod +x release/Recordly-linux-x64.AppImage
+./release/Recordly-linux-x64.AppImage
+```
+
+If the AppImage will not start, install FUSE 2 and run it again:
+
+```bash
+sudo apt install libfuse2t64
+```
 
 ---
 
@@ -243,7 +350,7 @@ xattr -rd com.apple.quarantine /Applications/Recordly.app
 |---|---|---|
 | **macOS** | macOS 14.0 (Sonoma) | Required for ScreenCaptureKit audio and microphone capture. |
 | **Windows** | Windows 10 20H1 (Build 19041, May 2020) | Required for the native Windows Graphics Capture (WGC) helper and best cursor-hiding behavior. |
-| **Linux** | Any modern distro | Recording works through Electron capture. System audio generally requires PipeWire. |
+| **Linux** | Ubuntu 24.04 or another current distro with X11 or Wayland | On X11, pick the screen from the recording bar. On Wayland, the desktop portal chooses the surface. System audio needs PipeWire. |
 
 > [!IMPORTANT]
 > On Windows builds older than 19041, recording can still work through fallback capture, but the real OS cursor may remain visible in recordings.
@@ -298,8 +405,8 @@ Recordly renders a polished cursor overlay on top of the recording. Platform cur
 - Older builds fall back to Electron capture, so the real cursor may remain visible.
 
 **Linux**
-- Electron desktop capture does not currently support cursor hiding.
-- If you also enable the rendered cursor overlay, exports may show both the real cursor and the styled cursor.
+- The system pointer is left out of the recording. The editor draws the tracked cursor instead.
+- Choose the screen you are recording. Pairing the wrong display places the cursor on the wrong edge of the video.
 
 ### System audio
 
