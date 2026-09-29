@@ -1129,18 +1129,41 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 		const platform = await window.electronAPI.getPlatform();
 		hideEditorOverlayCursorByDefault.current = false;
 		const existingSource = await window.electronAPI.getSelectedSource();
-		const selectedSource =
-			existingSource ?? (platform === "linux" ? LINUX_PORTAL_SOURCE : null);
+		let selectedSource = existingSource;
+		if (!selectedSource) {
+			if (platform === "linux") {
+				const linuxWindowSystem = await window.electronAPI.getLinuxWindowSystem?.();
+				if (linuxWindowSystem === "wayland") {
+					selectedSource = LINUX_PORTAL_SOURCE;
+				} else {
+					try {
+						const liveSources = await window.electronAPI.getSources({
+							types: ["screen"],
+							thumbnailSize: { width: 1, height: 1 },
+							fetchWindowIcons: false,
+						});
+						const firstScreen = liveSources.find((source) =>
+							source.id?.startsWith("screen:"),
+						);
+						if (firstScreen) {
+							selectedSource = firstScreen;
+						}
+					} catch (error) {
+						console.warn("Failed to resolve a default Linux screen source:", error);
+					}
+				}
+			}
+		}
 		if (!selectedSource) {
 			alert("Please select a source to record");
 			return null;
 		}
 
-		if (!existingSource && selectedSource.id === "screen:linux-portal") {
+		if (!existingSource) {
 			try {
 				await window.electronAPI.selectSource(selectedSource);
 			} catch (err) {
-				console.warn("Failed to persist Linux portal sentinel source:", err);
+				console.warn("Failed to persist default recording source:", err);
 			}
 		}
 

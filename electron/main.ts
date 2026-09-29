@@ -27,6 +27,7 @@ import {
 	killWindowsCaptureProcess,
 	registerIpcHandlers,
 } from "./ipc/handlers";
+import { shouldUseLinuxPortalSyntheticSource } from "./ipc/register/sourceMapping";
 import { ensureMediaServer } from "./mediaServer";
 import { hardenWebContentsNavigation, shouldHardenWebContentsType } from "./navigationPolicy";
 import { shouldGrantDisplayCapture, shouldGrantMediaPermission } from "./permissionPolicy";
@@ -89,7 +90,7 @@ app.on("web-contents-created", (_event, contents) => {
 });
 
 function configureGpuAccelerationSwitches() {
-	const { useAngle, useGl, disableFeatures } = getGpuSwitches(process.platform, process.env);
+	const { useAngle, useGl, disableFeatures } = getGpuSwitches(process.platform);
 	if (useAngle) {
 		app.commandLine.appendSwitch("use-angle", useAngle);
 	}
@@ -1120,13 +1121,15 @@ app.whenReady().then(async () => {
 			// is set we skip getSources entirely and hand back a synthetic
 			// source id; Chromium then opens the portal once to actually
 			// resolve the capture.
-			// Default to the sentinel on Linux when no source has been
-			// pre-selected (e.g. fresh session where the renderer skipped the
-			// source picker entirely). This avoids calling getSources() which
-			// would itself trigger an extra portal dialog.
-			const isLinuxPortalSentinel =
-				process.platform === "linux" && (sourceId === "screen:linux-portal" || !sourceId);
-			if (isLinuxPortalSentinel) {
+			//
+			// On X11 the synthetic id is not a valid capturer and fails with
+			// "Could not start video source", so resolve a real source instead.
+			if (
+				shouldUseLinuxPortalSyntheticSource({
+					platform: process.platform,
+					sourceId,
+				})
+			) {
 				callback({ video: { id: "screen:0:0", name: "Entire screen" } });
 				return;
 			}

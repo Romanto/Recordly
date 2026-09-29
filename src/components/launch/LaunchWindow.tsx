@@ -21,6 +21,7 @@ import { useScreenRecorder } from "../../hooks/useScreenRecorder";
 import { useVideoDevices } from "../../hooks/useVideoDevices";
 import { Button } from "../ui/button";
 import { HudInteractionContext } from "./contexts/HudInteractionContext";
+import { canChooseCaptureSource } from "./captureSourcePicker";
 import { canToggleFloatingWebcamPreview } from "./floatingWebcamPreview";
 import { useHudBarDrag } from "./hooks/useHudBarDrag";
 import { useLaunchHudInteractionState } from "./hooks/useLaunchHudInteractionState";
@@ -94,8 +95,9 @@ function LaunchWindowContent() {
 		setSelectedDeviceId: setSelectedVideoDeviceId,
 	} = useVideoDevices(webcamEnabled || openId === "webcam");
 
-	const { hudOverlayMousePassthroughSupported, platform } =
+	const { hudOverlayMousePassthroughSupported, platform, linuxWindowSystem } =
 		useLaunchWindowSystemState(preparePermissions);
+	const showSourcePicker = canChooseCaptureSource(platform, linuxWindowSystem);
 
 	useEffect(() => {
 		if (!selectedDeviceId) {
@@ -219,7 +221,7 @@ function LaunchWindowContent() {
 
 	const idleControls = (
 		<>
-			{platform !== "linux" && (
+			{showSourcePicker && (
 				<>
 					<SourcePopover
 						selectedSource={selectedSource}

@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { getScreenSourceIdForDisplay, LINUX_PORTAL_SCREEN_SOURCE_ID } from "./sourceMapping";
+import {
+	getLinuxWindowSystem,
+	getScreenSourceIdForDisplay,
+	LINUX_PORTAL_SCREEN_SOURCE_ID,
+	shouldUseLinuxPortalSyntheticSource,
+} from "./sourceMapping";
 
 describe("getScreenSourceIdForDisplay", () => {
 	it("keeps the live Electron screen source when one is available", () => {
@@ -43,5 +48,52 @@ describe("getScreenSourceIdForDisplay", () => {
 				platform: "win32",
 			}),
 		).toBe("screen:fallback:42");
+	});
+});
+
+describe("shouldUseLinuxPortalSyntheticSource", () => {
+	it("uses the synthetic portal source only on Wayland when unset or sentinel", () => {
+		expect(
+			shouldUseLinuxPortalSyntheticSource({
+				platform: "linux",
+				env: { XDG_SESSION_TYPE: "wayland" },
+				sourceId: null,
+			}),
+		).toBe(true);
+		expect(
+			shouldUseLinuxPortalSyntheticSource({
+				platform: "linux",
+				env: { XDG_SESSION_TYPE: "wayland" },
+				sourceId: LINUX_PORTAL_SCREEN_SOURCE_ID,
+			}),
+		).toBe(true);
+	});
+
+	it("does not use the synthetic portal source on X11", () => {
+		expect(
+			shouldUseLinuxPortalSyntheticSource({
+				platform: "linux",
+				env: { XDG_SESSION_TYPE: "x11" },
+				sourceId: null,
+			}),
+		).toBe(false);
+		expect(
+			shouldUseLinuxPortalSyntheticSource({
+				platform: "linux",
+				env: { XDG_SESSION_TYPE: "x11" },
+				sourceId: LINUX_PORTAL_SCREEN_SOURCE_ID,
+			}),
+		).toBe(false);
+	});
+});
+
+describe("getLinuxWindowSystem", () => {
+	it("reports wayland or x11 on Linux and null elsewhere", () => {
+		if (process.platform === "linux") {
+			expect(getLinuxWindowSystem({ XDG_SESSION_TYPE: "wayland" })).toBe("wayland");
+			expect(getLinuxWindowSystem({ XDG_SESSION_TYPE: "x11" })).toBe("x11");
+		} else {
+			expect(getLinuxWindowSystem({ XDG_SESSION_TYPE: "wayland" })).toBe(null);
+		}
 	});
 });

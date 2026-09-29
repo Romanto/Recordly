@@ -9,6 +9,7 @@ import {
 	createRecordingPreferencesStore,
 	type RecordingPreferencesPatch,
 } from "../settings/recordingPreferencesStore";
+import { getLinuxWindowSystem } from "./sourceMapping";
 import {
 	countdownInProgress,
 	countdownRemaining,
@@ -61,6 +62,10 @@ export function registerSettingsHandlers() {
 
 	ipcMain.handle("get-platform", () => {
 		return process.platform;
+	});
+
+	ipcMain.handle("get-linux-window-system", () => {
+		return getLinuxWindowSystem();
 	});
 
 	ipcMain.on("app-settings:get", (event, key: unknown) => {
