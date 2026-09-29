@@ -301,6 +301,16 @@ interface Window {
 		startFfmpegRecording: (
 			source: ProcessedDesktopSource,
 		) => Promise<{ success: boolean; path?: string; message?: string; error?: string }>;
+		pauseFfmpegRecording: () => Promise<{
+			success: boolean;
+			message?: string;
+			error?: string;
+		}>;
+		resumeFfmpegRecording: () => Promise<{
+			success: boolean;
+			message?: string;
+			error?: string;
+		}>;
 		stopFfmpegRecording: () => Promise<{
 			success: boolean;
 			path?: string;

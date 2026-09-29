@@ -149,3 +149,18 @@ export function planLightningExportRoutes(options: {
 export function getDefaultLightningRenderBackend(): ExportRenderBackend {
 	return "webgl";
 }
+
+export function getLightningRendererBackendOrder(
+	preferred: ExportRenderBackend | undefined,
+	webGpuAvailable: boolean,
+): ExportRenderBackend[] {
+	const selected = preferred ?? getDefaultLightningRenderBackend();
+	if (selected === "webgpu" && webGpuAvailable) {
+		return ["webgpu", "webgl"];
+	}
+
+	// WebGPU can finish initialization and then crash on the first frame while
+	// Pixi builds a bind group (`Cannot read properties of undefined (reading
+	// '_resourceType')`). WebGL is the stable Lightning renderer.
+	return webGpuAvailable ? ["webgl", "webgpu"] : ["webgl"];
+}

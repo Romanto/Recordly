@@ -105,7 +105,7 @@ function runPowerShellSnippet(command: string) {
 
 let cursorHidden = false;
 
-export function hideCursor() {
+export function hideCursor(): boolean | Promise<boolean> {
 	if (process.platform !== "win32" || cursorHidden) {
 		return false;
 	}

@@ -107,12 +107,8 @@ export function registerSettingsHandlers() {
 	// Cursor hiding for the browser-capture fallback.
 	// The IPC promise resolves only after the cursor hide attempt completes.
 	// ---------------------------------------------------------------------------
-	ipcMain.handle("hide-cursor", () => {
-		if (process.platform !== "win32") {
-			return { success: true };
-		}
-
-		return { success: hideCursor() };
+	ipcMain.handle("hide-cursor", async () => {
+		return { success: await hideCursor() };
 	});
 
 	ipcMain.handle("get-shortcuts", async () => {

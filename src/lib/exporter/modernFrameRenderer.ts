@@ -1,4 +1,5 @@
 import { Application, BlurFilter, Container, Graphics, Rectangle, Sprite, Texture } from "pixi.js";
+import { getLightningRendererBackendOrder } from "./backendPolicy";
 import { MotionBlurFilter } from "pixi-filters/motion-blur";
 import { ZoomBlurFilter } from "pixi-filters/zoom-blur";
 import { buildActiveCaptionLayout } from "@/components/video-editor/captionLayout";
@@ -622,15 +623,11 @@ export class FrameRenderer {
 			powerPreference: "high-performance" as const,
 		};
 
-		const preferredRenderBackend = this.config.preferredRenderBackend;
-		const backendOrder: ExportRenderBackend[] =
-			preferredRenderBackend === "webgl"
-				? ["webgl", "webgpu"]
-				: preferredRenderBackend === "webgpu"
-					? ["webgpu", "webgl"]
-					: typeof navigator !== "undefined" && "gpu" in navigator
-						? ["webgpu", "webgl"]
-						: ["webgl"];
+		const webGpuAvailable = typeof navigator !== "undefined" && "gpu" in navigator;
+		const backendOrder = getLightningRendererBackendOrder(
+			this.config.preferredRenderBackend,
+			webGpuAvailable,
+		);
 		const failures: PixiRendererAttempt[] = [];
 
 		for (const backend of backendOrder) {

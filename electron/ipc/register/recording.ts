@@ -1607,6 +1607,40 @@ export function registerRecordingHandlers(
 		}
 	});
 
+	ipcMain.handle("pause-ffmpeg-recording", () => {
+		if (!ffmpegCaptureProcess || !ffmpegScreenRecordingActive) {
+			return { success: false, message: "No FFmpeg recording is active." };
+		}
+
+		try {
+			ffmpegCaptureProcess.kill("SIGSTOP");
+			return { success: true };
+		} catch (error) {
+			return {
+				success: false,
+				message: "Failed to pause FFmpeg recording",
+				error: String(error),
+			};
+		}
+	});
+
+	ipcMain.handle("resume-ffmpeg-recording", () => {
+		if (!ffmpegCaptureProcess || !ffmpegScreenRecordingActive) {
+			return { success: false, message: "No FFmpeg recording is active." };
+		}
+
+		try {
+			ffmpegCaptureProcess.kill("SIGCONT");
+			return { success: true };
+		} catch (error) {
+			return {
+				success: false,
+				message: "Failed to resume FFmpeg recording",
+				error: String(error),
+			};
+		}
+	});
+
 	ipcMain.handle("stop-ffmpeg-recording", async () => {
 		if (!ffmpegScreenRecordingActive) {
 			return { success: false, message: "No FFmpeg recording is active." };

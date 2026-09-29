@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
 	getDefaultLightningRenderBackend,
+	getLightningRendererBackendOrder,
 	normalizeLightningRuntimePlatform,
 	planLightningExportRoutes,
 	shouldPreferNativeAutoBackend,
@@ -25,6 +26,10 @@ describe("backendPolicy", () => {
 
 	it("keeps Lightning exports on the stable WebGL renderer by default", () => {
 		expect(getDefaultLightningRenderBackend()).toBe("webgl");
+		expect(getLightningRendererBackendOrder(undefined, true)).toEqual(["webgl", "webgpu"]);
+		expect(getLightningRendererBackendOrder("webgl", true)).toEqual(["webgl", "webgpu"]);
+		expect(getLightningRendererBackendOrder("webgpu", true)).toEqual(["webgpu", "webgl"]);
+		expect(getLightningRendererBackendOrder(undefined, false)).toEqual(["webgl"]);
 	});
 
 	it("keeps Windows auto exports on the streaming route by default", () => {

@@ -149,7 +149,7 @@ describe("resolveBrowserCaptureCursorPolicy", () => {
 		});
 	});
 
-	it("keeps the tracked cursor visible on Linux because the OS cursor is not captured", () => {
+	it("leaves the Linux system pointer on screen and draws only the Recordly cursor", () => {
 		expect(resolveBrowserCaptureCursorPolicy({ platform: "linux" })).toEqual({
 			streamCursor: "never",
 			hideOsCursorBeforeRecording: false,

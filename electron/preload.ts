@@ -578,6 +578,12 @@ contextBridge.exposeInMainWorld("electronAPI", {
 	startFfmpegRecording: (source: ProcessedDesktopSource) => {
 		return ipcRenderer.invoke("start-ffmpeg-recording", source);
 	},
+	pauseFfmpegRecording: () => {
+		return ipcRenderer.invoke("pause-ffmpeg-recording");
+	},
+	resumeFfmpegRecording: () => {
+		return ipcRenderer.invoke("resume-ffmpeg-recording");
+	},
 	stopFfmpegRecording: () => {
 		return ipcRenderer.invoke("stop-ffmpeg-recording");
 	},

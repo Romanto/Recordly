@@ -206,8 +206,9 @@ export function resolveBrowserCaptureCursorPolicy({
 	}
 
 	if (platform === "linux") {
-		// Linux capture omits the OS cursor, and there is no native cursor
-		// compositor. Keep the tracked cursor visible in the editor.
+		// X11 capture bakes the system pointer into the frames. Linux recording
+		// uses x11grab with the pointer left on screen and out of the file.
+		// The editor draws only the tracked Recordly cursor.
 		return {
 			streamCursor: "never",
 			hideOsCursorBeforeRecording: false,
@@ -412,6 +413,7 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 	const webcamTimeOffsetMs = useRef(0);
 	const recordingSessionTimestamp = useRef<number | null>(null);
 	const nativeScreenRecording = useRef(false);
+	const linuxFfmpegRecording = useRef(false);
 	const nativeWindowsRecording = useRef(false);
 	const nativeWarmStartActive = useRef(false);
 	const pendingNativeCleanupPath = useRef<string | null>(null);
@@ -1314,6 +1316,54 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 			})();
 			return;
 		}
+		if (linuxFfmpegRecording.current) {
+			if (nativeStopRequestInFlight.current) {
+				return;
+			}
+			nativeStopRequestInFlight.current = true;
+			setRecording(false);
+			setFinalizing(true);
+			void (async () => {
+				const webcamPathPromise = stopWebcamRecorder();
+				let result: { success: boolean; path?: string; message?: string; error?: string };
+				try {
+					result = await window.electronAPI.stopFfmpegRecording();
+				} catch (error) {
+					result = { success: false, error: getErrorMessage(error) };
+				}
+				nativeStopRequestInFlight.current = false;
+				linuxFfmpegRecording.current = false;
+				try {
+					await window.electronAPI?.setRecordingState(false);
+				} catch (stateError) {
+					console.warn("Failed to reset main-process recording state:", stateError);
+				}
+				if (!result.success || !result.path) {
+					console.error(
+						"Failed to stop Linux screen recording:",
+						result.error ?? result.message,
+					);
+					setFinalizing(false);
+					alert(result.error ?? result.message ?? "Failed to finish the recording");
+					return;
+				}
+				await finalizeRecordingSession(result.path, null);
+				const webcamPath = await webcamPathPromise;
+				if (webcamPath) {
+					try {
+						await window.electronAPI.setCurrentRecordingSession({
+							videoPath: result.path,
+							webcamPath,
+							timeOffsetMs: webcamTimeOffsetMs.current,
+							hideOverlayCursorByDefault: false,
+						});
+					} catch (sessionError) {
+						console.error("Failed to publish Linux webcam recording:", sessionError);
+					}
+				}
+			})();
+			return;
+		}
 		if (nativeScreenRecording.current) {
 			if (nativeStopRequestInFlight.current) {
 				return;
@@ -1961,6 +2011,40 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 				resetRecordingClock(recordingSessionTimestamp.current);
 			}
 
+			const useLinuxFramebufferCapture =
+				platform === "linux" &&
+				(selectedSource.id.startsWith("screen:") ||
+					selectedSource.id.startsWith("window:")) &&
+				selectedSource.id !== "screen:linux-portal";
+			if (useLinuxFramebufferCapture) {
+				// x11grab reads the screen without the pointer, so the system cursor
+				// stays visible while recording and is absent from the video file.
+				try {
+					await window.electronAPI.setRecordingState(true);
+				} catch (stateError) {
+					console.warn("Failed to start cursor sampling:", stateError);
+				}
+				const ffmpegResult = await window.electronAPI.startFfmpegRecording(selectedSource);
+				if (startWasCancelled()) {
+					await window.electronAPI.stopFfmpegRecording().catch(() => undefined);
+					await window.electronAPI.setRecordingState(false).catch(() => undefined);
+					return;
+				}
+				if (!ffmpegResult.success) {
+					await window.electronAPI.setRecordingState(false).catch(() => undefined);
+					throw new Error(
+						ffmpegResult.error ??
+							ffmpegResult.message ??
+							"Failed to start Linux screen recording",
+					);
+				}
+				linuxFfmpegRecording.current = true;
+				beginWebcamCapture();
+				resetRecordingClock(Date.now());
+				setRecording(true);
+				return;
+			}
+
 			const browserCursorPolicy = resolveBrowserCaptureCursorPolicy({
 				nativeWindowsCaptureStartFailed,
 				platform,
@@ -2327,6 +2411,30 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 
 	const pauseRecording = useCallback(() => {
 		if (!recording || paused) return;
+		if (linuxFfmpegRecording.current) {
+			void (async () => {
+				const result = await window.electronAPI.pauseFfmpegRecording();
+				if (!result.success) {
+					console.error(
+						"Failed to pause Linux screen recording:",
+						result.error ?? result.message,
+					);
+					return;
+				}
+				if (webcamRecorder.current?.state === "recording") {
+					webcamRecorder.current.pause();
+				}
+				const boundaryMs = Date.now();
+				markRecordingPaused(boundaryMs);
+				setPaused(true);
+				try {
+					await window.electronAPI.pauseCursorCapture(boundaryMs);
+				} catch (error) {
+					console.warn("Failed to pause cursor capture:", error);
+				}
+			})();
+			return;
+		}
 		if (nativeScreenRecording.current) {
 			void (async () => {
 				const result = await window.electronAPI.pauseNativeScreenRecording();
@@ -2373,6 +2481,30 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 
 	const resumeRecording = useCallback(() => {
 		if (!recording || !paused) return;
+		if (linuxFfmpegRecording.current) {
+			void (async () => {
+				const result = await window.electronAPI.resumeFfmpegRecording();
+				if (!result.success) {
+					console.error(
+						"Failed to resume Linux screen recording:",
+						result.error ?? result.message,
+					);
+					return;
+				}
+				if (webcamRecorder.current?.state === "paused") {
+					webcamRecorder.current.resume();
+				}
+				const boundaryMs = Date.now();
+				markRecordingResumed(boundaryMs);
+				setPaused(false);
+				try {
+					await window.electronAPI.resumeCursorCapture(boundaryMs);
+				} catch (error) {
+					console.warn("Failed to resume cursor capture:", error);
+				}
+			})();
+			return;
+		}
 		if (nativeScreenRecording.current) {
 			void (async () => {
 				const result = await window.electronAPI.resumeNativeScreenRecording();
